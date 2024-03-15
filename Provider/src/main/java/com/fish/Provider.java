@@ -1,17 +1,18 @@
 package com.fish;
 
-import com.fish.common.URL;
-import com.fish.protocol.HttpServer;
-import com.fish.register.LocalRegister;
-import com.fish.register.MapRemoteRegister;
+import com.fish.rpc_server.NettyRPCServer;
+import com.fish.rpc_server.RPCServer;
+import com.fish.rpc_server.ServiceProvider;
+
+import static com.fish.config.Myconfig.port;
 
 public class Provider {
     public static void main(String[] args) {
-        LocalRegister.register(HelloService.class.getName(),"1.0",HelloServiceImpl.class);
-        URL url = new URL("localhost", 8080);
-        MapRemoteRegister.register(HelloService.class.getName(), url);
+        HelloService helloService = new HelloServiceImpl();
+        ServiceProvider serviceProvider = new ServiceProvider();
+        serviceProvider.provideServiceInterface(helloService);
 
-        HttpServer server = new HttpServer();
-        server.start(url.getHostname(), 8080);
+        RPCServer RPCServer = new NettyRPCServer(serviceProvider);
+        RPCServer.start(port);
     }
 }
