@@ -17,7 +17,8 @@ import java.io.Serializable;
 @Builder
 @AllArgsConstructor
 public class RPCResponse implements Serializable {
-    
+
+    private String requestId;
     private int code;
     private String message;
     // 更新,这里我们需要加入这个，不然用其它序列化方式（除了java Serialize）得不到data的type

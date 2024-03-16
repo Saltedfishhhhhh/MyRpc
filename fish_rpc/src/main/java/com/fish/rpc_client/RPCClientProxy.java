@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -23,6 +24,7 @@ public class RPCClientProxy implements InvocationHandler {
         String interfaceName = method.getDeclaringClass().getName();
         RPCRequest request = RPCRequest.builder().interfaceName(interfaceName)
                 .methodName(method.getName())
+                .requestId(UUID.randomUUID().toString())
                 .params(args)
                 .paramsTypes(method.getParameterTypes()).build();
         //数据传输,默认使用netty
