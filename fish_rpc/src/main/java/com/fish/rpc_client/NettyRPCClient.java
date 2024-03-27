@@ -34,16 +34,12 @@ public class NettyRPCClient implements RPCClient {
     }
     // netty客户端初始化，重复使用
     static {
-
         eventLoopGroup = new NioEventLoopGroup();
         bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup).channel(NioSocketChannel.class)
                 .handler(new NettyClientInitializer());
     }
 
-    /**
-     * netty的传输都是异步的，发送request，会立刻返回一个值， 不是想要的相应的response
-     */
     @Override
     public RPCResponse sendRequest(RPCRequest request) {
         InetSocketAddress address = serviceRegister.serviceDiscovery(request.getInterfaceName());
@@ -53,18 +49,26 @@ public class NettyRPCClient implements RPCClient {
         int retryCount = 0;
         while (retryCount < maxRetryTimes) {
             try {
-
                 ChannelFuture channelFuture = bootstrap.connect(host, port).sync();
                 Channel channel = channelFuture.channel();
-                channel.writeAndFlush(request);
-//                channel.closeFuture().sync();
+                CompletableFuture<RPCResponse> resultFuture = new CompletableFuture<>();
+
+                channel.writeAndFlush(request).addListener((ChannelFutureListener) future -> {
+                    if (future.isSuccess()) {
+                        System.out.println("client send message: " + request);
+                    } else {
+                        future.channel().close();
+                        resultFuture.completeExceptionally(future.cause());
+                    }
+                });
+
+//                // netty的传输都是异步的，发送request，会立刻返回一个值， 不是想要的相应的response
 //                // 阻塞的获得结果，通过给channel设计别名，获取特定名字下的channel中的内容（这个在hanlder中设置）
-//                // 实际上不应通过阻塞，可通过回调函数，后面可以再进行优化
+//                channel.closeFuture().sync();
 //                AttributeKey<RPCResponse> key = AttributeKey.valueOf("RPCResponse");
 //                RPCResponse response = channel.attr(key).get();
 //                return response;
-
-                CompletableFuture<RPCResponse> resultFuture = new CompletableFuture<>();
+                // 改造，使用CompletableFuture异步获取结果
                 unprocessedRequests.put(request.getRequestId(), resultFuture);
                 channel.closeFuture().addListener((ChannelFutureListener) future -> {
                     if (resultFuture.isDone()) {
@@ -72,7 +76,7 @@ public class NettyRPCClient implements RPCClient {
                     }
                     resultFuture.completeExceptionally(new IllegalStateException());
                 });
-                return resultFuture.get();
+                return resultFuture.get(2, TimeUnit.SECONDS);
 
             } catch (InterruptedException e) {
                 retryCount++;
@@ -82,6 +86,8 @@ public class NettyRPCClient implements RPCClient {
                     throw new RuntimeException(ex);
                 }
             } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            } catch (TimeoutException e) {
                 throw new RuntimeException(e);
             }
         }

@@ -5,7 +5,9 @@ import com.fish.factory.SingletonFactory;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.AttributeKey;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class NettyClientHandler extends SimpleChannelInboundHandler<RPCResponse> {
     private final UnprocessedRequests unprocessedRequests;
 
@@ -17,7 +19,7 @@ public class NettyClientHandler extends SimpleChannelInboundHandler<RPCResponse>
 //        // 接收到response, 给channel设计别名，让sendRequest里读取response
 //        AttributeKey<RPCResponse> key = AttributeKey.valueOf("RPCResponse");
 //        ctx.channel().attr(key).set(msg);
-
+        System.out.println("client receive msg: " + msg);
         unprocessedRequests.complete(msg);
         ctx.channel().close();
     }

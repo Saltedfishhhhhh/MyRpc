@@ -17,7 +17,7 @@ import java.io.Serializable;
 @Builder
 @AllArgsConstructor
 public class RPCResponse implements Serializable {
-
+    // 响应对应的请求的编号
     private String requestId;
     private int code;
     private String message;

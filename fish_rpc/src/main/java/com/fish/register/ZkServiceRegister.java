@@ -12,10 +12,11 @@ import org.apache.curator.framework.api.CuratorWatcher;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.fish.config.Myconfig.zk_address_port;
 
@@ -25,7 +26,7 @@ public class ZkServiceRegister implements ServiceRegister {
     // zookeeper根路径节点
     private static final String ROOT_PATH = "MyRPC";
     private LoadBalance loadBalance = new RandomLoadBalance();
-    private List<String> cachedServiceAddresses = new ArrayList<>();
+    private Map<String, List<String>> cachedServiceAddresses = new HashMap<>();
 
     // 这里负责zookeeper客户端的初始化，并与zookeeper服务端建立连接
     public ZkServiceRegister() {
@@ -40,12 +41,7 @@ public class ZkServiceRegister implements ServiceRegister {
         this.client.start();
     }
     public ZkServiceRegister(String interfaceName) {
-        // 指数时间重试
         RetryPolicy policy = new ExponentialBackoffRetry(1000, 3);
-        // zookeeper的地址固定，不管是服务提供者还是，消费者都要与之建立连接
-        // sessionTimeoutMs 与 zoo.cfg中的tickTime 有关系，
-        // zk还会根据minSessionTimeout与maxSessionTimeout两个参数重新调整最后的超时值。默认分别为tickTime 的2倍和20倍
-        // 使用心跳监听状态
         this.client = CuratorFrameworkFactory.builder().connectString(zk_address_port)
                 .sessionTimeoutMs(40000).retryPolicy(policy).namespace(ROOT_PATH).build();
         this.client.start();
@@ -57,7 +53,8 @@ public class ZkServiceRegister implements ServiceRegister {
                 @Override
                 public void process(WatchedEvent event) throws Exception {
                     List<String> children = client.getChildren().usingWatcher(this).forPath(servicePath);
-                    updateServiceAddresses(children, interfaceName);
+                    updateServiceAddresses(interfaceName,children);
+                    client.getChildren().usingWatcher(this).forPath(servicePath);
                 }
             }).forPath(servicePath);
         } catch (Exception e) {
@@ -99,38 +96,33 @@ public class ZkServiceRegister implements ServiceRegister {
         }
 
         // 从缓存中选择服务地址
-        if (!cachedServiceAddresses.isEmpty()) {
+        List<String> serviceAddresses = cachedServiceAddresses.get(serviceName);
+        if (serviceAddresses != null && !serviceAddresses.isEmpty()) {
             System.out.print("使用缓存");
-            String selectedAddress = loadBalance.balance(cachedServiceAddresses);
+            String selectedAddress = loadBalance.balance(serviceAddresses);
             return parseAddress(selectedAddress);
         }
 
         try {
             // 缓存中没有地址，从ZooKeeper中获取服务地址列表
-            List<String> strings = client.getChildren().forPath("/" + serviceName);
-            updateServiceAddresses(strings, serviceName);
+            List<String> addresses = client.getChildren().forPath("/" + serviceName);
+            updateServiceAddresses(serviceName, addresses);
             // 选择一个服务地址
-            String string = loadBalance.balance(cachedServiceAddresses);
-            return parseAddress(string);
+            String selectedAddress = loadBalance.balance(cachedServiceAddresses.get(serviceName));
+            return parseAddress(selectedAddress);
         } catch (Exception e) {
             e.printStackTrace();
         }
         return null;
     }
 
+
     // 更新缓存中的服务地址列表
-    private void updateServiceAddresses(List<String> addresses, String serviceName) {
-        List<String> updatedAddresses = new ArrayList<>();
-        for (String address : addresses) {
-            updatedAddresses.add(address);
-        }
-        // 更新缓存
+    private void updateServiceAddresses(String serviceName,List<String> addresses) {
         synchronized (cachedServiceAddresses) {
-            // 清空缓存
-            cachedServiceAddresses.clear();
             // 添加新的服务地址到缓存
-            cachedServiceAddresses.addAll(updatedAddresses);
-            System.out.print("缓存同步成功");
+            cachedServiceAddresses.put(serviceName, addresses);
+            System.out.print("检测到"+serviceName+"节点变化，缓存同步成功");
         }
     }
 
