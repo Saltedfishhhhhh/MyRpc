@@ -76,7 +76,7 @@ public class NettyRPCClient implements RPCClient {
                     }
                     resultFuture.completeExceptionally(new IllegalStateException());
                 });
-                return resultFuture.get(2, TimeUnit.SECONDS);
+                return  resultFuture.join();
 
             } catch (InterruptedException e) {
                 retryCount++;
@@ -85,10 +85,6 @@ public class NettyRPCClient implements RPCClient {
                 } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
                 }
-            } catch (ExecutionException e) {
-                throw new RuntimeException(e);
-            } catch (TimeoutException e) {
-                throw new RuntimeException(e);
             }
         }
         System.out.println("Failed to send request after " + maxRetryTimes + " retries.");
