@@ -27,11 +27,6 @@ public class RPCClientProxy implements InvocationHandler {
                 .requestId(UUID.randomUUID().toString())
                 .params(args)
                 .paramsTypes(method.getParameterTypes()).build();
-        //数据传输,默认使用netty
-        if(client == null){
-             client = new NettyRPCClient(interfaceName);
-        }
-
         RPCResponse response = client.sendRequest(request);
 
         //System.out.println(response);

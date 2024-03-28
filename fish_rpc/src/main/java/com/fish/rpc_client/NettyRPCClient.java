@@ -28,10 +28,11 @@ public class NettyRPCClient implements RPCClient {
     private int port;
     private ServiceRegister serviceRegister;
     private final UnprocessedRequests unprocessedRequests;
-    public NettyRPCClient(String interfaceName) {
-        this.serviceRegister = new ZkServiceRegister(interfaceName);
+    public NettyRPCClient() {
+        this.serviceRegister = new ZkServiceRegister();
         this.unprocessedRequests = SingletonFactory.getInstance(UnprocessedRequests.class);
     }
+
     // netty客户端初始化，重复使用
     static {
         eventLoopGroup = new NioEventLoopGroup();

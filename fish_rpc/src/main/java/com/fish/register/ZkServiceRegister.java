@@ -13,7 +13,6 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.WatchedEvent;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,22 +38,29 @@ public class ZkServiceRegister implements ServiceRegister {
         this.client = CuratorFrameworkFactory.builder().connectString(zk_address_port)
                 .sessionTimeoutMs(40000).retryPolicy(policy).namespace(ROOT_PATH).build();
         this.client.start();
-    }
-    public ZkServiceRegister(String interfaceName) {
-        RetryPolicy policy = new ExponentialBackoffRetry(1000, 3);
-        this.client = CuratorFrameworkFactory.builder().connectString(zk_address_port)
-                .sessionTimeoutMs(40000).retryPolicy(policy).namespace(ROOT_PATH).build();
-        this.client.start();
 
-        // 监听服务提供者状态变化，更新缓存
-        String servicePath = "/" + interfaceName;
+        String servicePath = "/";
+        List<String> children = null;
+        try {
+            children = client.getChildren().forPath(servicePath);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        if(children.size()!=0){
+            for (String s : children) {
+                addWatcher(s);
+            }
+        }
+
+
         try {
             client.getChildren().usingWatcher(new CuratorWatcher() {
                 @Override
                 public void process(WatchedEvent event) throws Exception {
                     List<String> children = client.getChildren().usingWatcher(this).forPath(servicePath);
-                    updateServiceAddresses(interfaceName,children);
-                    client.getChildren().usingWatcher(this).forPath(servicePath);
+                    // 获取是哪个服务发生了变化
+                    String serviceName = event.getPath().substring(event.getPath().lastIndexOf("/") + 1);
+                    updateServiceAddresses(serviceName, children);
                 }
             }).forPath(servicePath);
         } catch (Exception e) {
@@ -120,9 +126,34 @@ public class ZkServiceRegister implements ServiceRegister {
     // 更新缓存中的服务地址列表
     private void updateServiceAddresses(String serviceName,List<String> addresses) {
         synchronized (cachedServiceAddresses) {
+            if(serviceName == null || serviceName.equals("")){
+                return;
+            }
+            if(addresses == null || addresses.isEmpty()){
+                cachedServiceAddresses.remove(serviceName);
+                System.out.println("服务"+serviceName+"下线，缓存同步成功");
+                return;
+            }
             // 添加新的服务地址到缓存
             cachedServiceAddresses.put(serviceName, addresses);
-            System.out.print("检测到"+serviceName+"节点变化，缓存同步成功");
+            System.out.println("检测到"+serviceName+"节点变化，缓存同步成功");
+        }
+    }
+
+    private void addWatcher(String serviceName){
+        String servicePath = "/" + serviceName;
+        try {
+            client.getChildren().usingWatcher(new CuratorWatcher() {
+                @Override
+                public void process(WatchedEvent event) throws Exception {
+                    List<String> children = client.getChildren().usingWatcher(this).forPath(servicePath);
+                    updateServiceAddresses(serviceName, children);
+                    // 再次注册监听
+                    client.getChildren().usingWatcher(this).forPath(servicePath);
+                }
+            }).forPath(servicePath);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
