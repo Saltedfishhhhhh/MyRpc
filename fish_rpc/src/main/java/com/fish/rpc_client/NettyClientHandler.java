@@ -19,9 +19,10 @@ public class NettyClientHandler extends SimpleChannelInboundHandler<RPCResponse>
 //        // 接收到response, 给channel设计别名，让sendRequest里读取response
 //        AttributeKey<RPCResponse> key = AttributeKey.valueOf("RPCResponse");
 //        ctx.channel().attr(key).set(msg);
+//        ctx.channel().close();
+
         System.out.println("client receive msg: " + msg);
         unprocessedRequests.complete(msg);
-        ctx.channel().close();
     }
 
     @Override

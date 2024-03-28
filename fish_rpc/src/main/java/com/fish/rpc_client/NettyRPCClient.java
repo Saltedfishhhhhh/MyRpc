@@ -51,7 +51,9 @@ public class NettyRPCClient implements RPCClient {
             try {
                 ChannelFuture channelFuture = bootstrap.connect(host, port).sync();
                 Channel channel = channelFuture.channel();
+
                 CompletableFuture<RPCResponse> resultFuture = new CompletableFuture<>();
+                unprocessedRequests.put(request.getRequestId(), resultFuture);
 
                 channel.writeAndFlush(request).addListener((ChannelFutureListener) future -> {
                     if (future.isSuccess()) {
@@ -68,14 +70,14 @@ public class NettyRPCClient implements RPCClient {
 //                AttributeKey<RPCResponse> key = AttributeKey.valueOf("RPCResponse");
 //                RPCResponse response = channel.attr(key).get();
 //                return response;
-                // 改造，使用CompletableFuture异步获取结果
-                unprocessedRequests.put(request.getRequestId(), resultFuture);
-                channel.closeFuture().addListener((ChannelFutureListener) future -> {
-                    if (resultFuture.isDone()) {
-                        return;
-                    }
-                    resultFuture.completeExceptionally(new IllegalStateException());
-                });
+
+                // 改造，使用CompletableFuture
+//                channel.closeFuture().addListener((ChannelFutureListener) future -> {
+//                    if (resultFuture.isDone()) {
+//                        return;
+//                    }
+//                    resultFuture.completeExceptionally(new IllegalStateException());
+//                });
                 return  resultFuture.join();
 
             } catch (InterruptedException e) {
