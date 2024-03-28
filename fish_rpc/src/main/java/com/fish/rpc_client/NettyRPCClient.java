@@ -71,14 +71,7 @@ public class NettyRPCClient implements RPCClient {
 //                RPCResponse response = channel.attr(key).get();
 //                return response;
 
-                // 改造，使用CompletableFuture
-//                channel.closeFuture().addListener((ChannelFutureListener) future -> {
-//                    if (resultFuture.isDone()) {
-//                        return;
-//                    }
-//                    resultFuture.completeExceptionally(new IllegalStateException());
-//                });
-                return  resultFuture.join();
+                return  resultFuture.get();
 
             } catch (InterruptedException e) {
                 retryCount++;
@@ -87,6 +80,8 @@ public class NettyRPCClient implements RPCClient {
                 } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
                 }
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
             }
         }
         System.out.println("Failed to send request after " + maxRetryTimes + " retries.");
